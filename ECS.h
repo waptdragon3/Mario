@@ -28,9 +28,21 @@ namespace ECS
 		std::uint32_t ID;
 		static const std::uint32_t MAX_ENTITIES = 5000;
 		Entity(const std::uint32_t _id) :ID(_id) {}
+		Entity()
+		{
+			ID = -1;
+		}
 	};
 
-	bool operator==(Entity e1, Entity e2) { return e1.ID == e2.ID; }
+	inline bool operator==(Entity e1, Entity e2) { return e1.ID == e2.ID; }
+
+	struct EntityHasher
+	{
+		std::size_t operator()(const Entity& e) const
+		{
+			return std::hash<uint32_t>()(e.ID);
+		}
+	};
 
 	using ComponentType = std::uint16_t;
 
@@ -48,7 +60,7 @@ namespace ECS
 	{
 	private:
 		std::array<T,5000> componentArray;
-		std::unordered_map<Entity, int> entityToIndexMap;
+		std::unordered_map<uint32_t, int> entityToIndexMap;
 		std::unordered_map<int, Entity> indexToEntityMap;
 		//std::list<int> entityToIndexMap;
 		int size;
@@ -56,35 +68,42 @@ namespace ECS
 
 		void insertData(Entity entity, T component)
 		{
-			if(entityToIndexMap.find(entity) != entityToIndexMap.end()) throw ECSException("Component cannot be added to the same entity twice");
-			entityToIndexMap[entity] = size;
+			if(entityToIndexMap.find(entity.ID) != entityToIndexMap.end()) throw ECSException("Component cannot be added to the same entity twice");
+			entityToIndexMap[entity.ID] = size;
 			indexToEntityMap[size] = entity;
 			componentArray[size] = component;
 			size++;
 		}
 		void removeData(Entity entity)
 		{
-			if (entityToIndexMap.find(entity) == entityToIndexMap.end()) throw ECSException("Entity does not have the component trying to be removed");
+			auto loc = entityToIndexMap.find(entity.ID);
+			auto end = entityToIndexMap.end();
+			if (loc == end)
+			{
+				//throw ECSException("Entity does not have the component trying to be removed");
+				return;
+			}
 
-			int indexOfRemovedEntity = entityToIndexMap[entity];
+			int indexOfRemovedEntity = loc->second;
 			int indexOfLastElement = size - 1;
 			//move last component to the new empty spot
 			componentArray[indexOfRemovedEntity] = componentArray[indexOfLastElement];
 
 			//update map to point to moved spot
 			Entity entityOfLastElement = indexToEntityMap[indexOfLastElement];
-			entityToIndexMap[entityOfLastElement] = indexOfRemovedEntity;
+			entityToIndexMap[entityOfLastElement.ID] = indexOfRemovedEntity;
 			indexToEntityMap[indexOfLastElement] = entityOfLastElement;
 
-			entityToIndexMap.erase(entity);
+			entityToIndexMap.erase(entity.ID);
 			indexToEntityMap.erase(indexOfLastElement);
 
 			size--;
 		}
 		T& getData(Entity entity)
 		{
-			//if (entityToIndexMap.find(entity) == entityToIndexMap.end()) throw ECSException("Entity does not have the component trying to be accessed");
-			return componentArray[entityToIndexMap[entity]];
+			auto find = entityToIndexMap.find(entity.ID);
+			if (find == entityToIndexMap.end()) throw ECSException("Entity does not have the component trying to be accessed");
+			return componentArray[find->second];
 		}
 		Entity getEntityFromComponent(T component)
 		{
@@ -94,7 +113,7 @@ namespace ECS
 		}
 		void entityDestroyed(Entity entity) override
 		{
-			if (entityToIndexMap.find(entity) == entityToIndexMap.end())
+			if (entityToIndexMap.find(entity.ID) == entityToIndexMap.end())
 			{
 				removeData(entity);
 			}
@@ -151,6 +170,14 @@ namespace ECS
 
 			return signatures[entity.ID];
 		}
+
+		std::list<Entity> getEntities()
+		{
+			std::list<Entity> entities;
+
+			return entities;
+		}
+
 	};
 	class ComponentManager
 	{
@@ -248,7 +275,9 @@ namespace ECS
 			for (auto const& pair : systems)
 			{
 				auto const& system = pair.second;
-				system->entities.erase(std::find(system->entities.begin(), system->entities.end(), entity));
+				auto e = std::find(system->entities.begin(), system->entities.end(), entity);
+				if(e != system->entities.end())
+					system->entities.erase(e);
 			}
 		}
 
@@ -343,6 +372,12 @@ namespace ECS
 		{
 			return componentManager->getEntityFromComponent(component);
 		}
+		template<typename T>
+		bool hasComponent(Entity e)
+		{
+			Signature sign = entityManager->getSignature(e);
+			return sign.test(componentManager->getComponentType<T>());
+		}
 
 		//System methods
 		template<typename T>
@@ -356,6 +391,19 @@ namespace ECS
 			systemManager->setSignature<T>(signature);
 		}
 
+
+		//Misc methods
+		std::list<Entity> getEntities()
+		{
+			std::list<Entity> entities;
+
+
+
+			return entities;
+		}
+
+
 	};
 
 } //namespace
+

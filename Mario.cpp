@@ -40,8 +40,9 @@ void registerComponents();
 void registerSystems();
 
 void addInputs();
-
 void addEntities();
+
+void snap();
 
 ECS::Entity createPlayer(Vec2 position);
 ECS::Entity createPlatform(Vec2 position);
@@ -111,6 +112,7 @@ int main(int argc, char** argv)
 #endif // _DEBUG
 
 		if (Controls::getInput("pause") == Controls::InputState::Pressed) isPaused = !isPaused;
+		if (Controls::getInput("crouch") == Controls::InputState::Pressed) snap();
 
 
 		//render stuff
@@ -195,7 +197,7 @@ void addEntities()
 	createPlatform(Vec2(30 + 128, 200-32*2));
 	*/
 
-	for (int i = 0; i < ECS::Entity::MAX_ENTITIES; i++)
+	for (int i = 0; i < ECS::Entity::MAX_ENTITIES/2; i++)
 	{
 		ECS::Entity e = gCoordinator.createEntity();
 
@@ -221,6 +223,24 @@ void addEntities()
 		if (i%11 == 0) gCoordinator.addComponent<RigidBody>(e, rb);
 	}
 	//createPlatform(Vec2(30+64, 200));
+}
+
+void snap()
+{
+	for (int i = 0; i < ECS::Entity::MAX_ENTITIES; i++)
+	{
+		ECS::Entity e(i);
+
+		if (gCoordinator.hasComponent<SpriteComponent>(e))
+		{
+
+			if (rand() % 100 < 50)
+			{
+				//std::cout << "Entity " << e.ID << " snapped" << std::endl;
+				gCoordinator.destroyEntity(e);
+			}
+		}
+	}
 }
 
 ECS::Entity createPlayer(Vec2 position)
@@ -357,3 +377,4 @@ void close()
 	IMG_Quit();
 	SDL_Quit();
 }
+
